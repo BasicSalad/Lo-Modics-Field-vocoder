@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import { type VocoderParams, type RecordingState } from './types';
 import { useVocoderAudio } from './hooks/useVocoderAudio';
-import { PlayIcon, PauseIcon, MicrophoneIcon, StopIcon, ResetIcon, DiceIcon, DownloadIcon, MusicNoteIcon } from './components/Icon';
+import { PlayIcon, PauseIcon, MicrophoneIcon, StopIcon, ResetIcon, DiceIcon, DownloadIcon } from './components/Icon';
 import { SpectrumVisualizer } from './components/SpectrumVisualizer';
 import { Slider } from './components/Slider';
 
 const defaultParams: VocoderParams = {
-    carrierNoise: 0.1,
-    size: 0,
+    carrierNoise: 0.3,
+    size: 0.2,
     speed: 1,
-    pitch: 0.3,
+    pitch: -5,
 };
 
 const sliderRanges = {
@@ -32,6 +32,7 @@ const App: React.FC = () => {
     resetRecording,
     renderAndDownload,
     loadSample,
+    isSampleLoaded,
   } = useVocoderAudio(params);
   
   const handleParamChange = useCallback((param: keyof VocoderParams, value: number) => {
@@ -62,6 +63,16 @@ const App: React.FC = () => {
     }
   }, [renderAndDownload]);
 
+  const handleSamplePlayToggle = useCallback(async () => {
+    if (recordingState === 'recording') return;
+
+    if (isSampleLoaded && (recordingState === 'playing' || recordingState === 'paused')) {
+        togglePlayback();
+    } else {
+        await loadSample(true); // Autoplay
+    }
+  }, [recordingState, isSampleLoaded, togglePlayback, loadSample]);
+
   const isPlaying = recordingState === 'playing';
   const canReset = ['recorded', 'playing', 'paused'].includes(recordingState);
   
@@ -84,9 +95,9 @@ const App: React.FC = () => {
       case 'recorded':
       case 'paused':
         return { 
-            icon: <PlayIcon />, 
-            action: togglePlayback, 
-            aria: 'Play recording',
+            icon: isSampleLoaded ? <MicrophoneIcon /> : <PlayIcon />, 
+            action: isSampleLoaded ? startRecording : togglePlayback, 
+            aria: isSampleLoaded ? 'Start recording (overwrites sample)' : 'Play recording',
             className: 'bg-purple-600 hover:bg-purple-500 text-white'
         };
       case 'playing':
@@ -106,20 +117,51 @@ const App: React.FC = () => {
     }
   };
 
-  const { icon, action, aria, className } = getMainButtonContent();
+  const getSampleButtonContent = () => {
+    if (isSampleLoaded && recordingState === 'playing') {
+        return {
+            icon: <PauseIcon />,
+            aria: 'Pause sample',
+            className: 'bg-teal-600 hover:bg-teal-500'
+        };
+    }
+    if (isSampleLoaded && (recordingState === 'paused' || recordingState === 'recorded')) {
+        return {
+            icon: <PlayIcon />,
+            aria: 'Play sample',
+            className: 'bg-teal-600 hover:bg-teal-500'
+        };
+    }
+    return {
+        icon: <PlayIcon />,
+        aria: 'Load and play sample',
+        className: 'bg-teal-600 hover:bg-teal-500'
+    };
+  };
+
+  const mainButton = getMainButtonContent();
+  const sampleButton = getSampleButtonContent();
   const mainButtonBaseClasses = "w-20 h-20 rounded-lg flex items-center justify-center shadow-lg transition-all duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:w-10 [&_svg]:h-10";
   const sideButtonBaseClasses = "w-16 h-16 rounded-lg text-white flex items-center justify-center shadow-lg transition-all duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:w-8 [&_svg]:h-8";
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="p-4 border-b-2 border-black/20 bg-[#D9D9D9]">
-        <div className="flex items-baseline gap-2 max-w-2xl mx-auto">
-            <h1 className="text-2xl font-black text-black tracking-tighter">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+            <h1 className="text-3xl font-black text-black tracking-tighter">
                 LO-MODICS
             </h1>
-            <h2 className="text-sm font-bold text-black/90">
-                FIELD VOCODER FV-103
-            </h2>
+            <div className="flex flex-col items-end">
+                <h2 className="text-sm font-bold tracking-widest text-black/90">
+                    FIELD VOCODER
+                </h2>
+                <div className="flex items-center gap-1.5 mt-1">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                </div>
+            </div>
         </div>
       </header>
       
@@ -139,29 +181,27 @@ const App: React.FC = () => {
               <ResetIcon />
             </button>
             <button
-              onClick={action}
-              className={`${mainButtonBaseClasses} ${className}`}
-              aria-label={aria}
+              onClick={mainButton.action}
+              className={`${mainButtonBaseClasses} ${mainButton.className}`}
+              aria-label={mainButton.aria}
             >
-              {icon}
+              {mainButton.icon}
             </button>
-            <div className="flex items-center gap-4">
-              <button
-                  onClick={loadSample}
-                  disabled={recordingState === 'recording'}
-                  className={`${sideButtonBaseClasses} bg-orange-500 hover:bg-orange-400 disabled:hover:bg-orange-500`}
-                  aria-label="Play sample audio"
-                >
-                  <MusicNoteIcon />
-                </button>
-                <button
-                  onClick={randomizeParams}
-                  className={`${sideButtonBaseClasses} bg-teal-600 hover:bg-teal-500 disabled:hover:bg-teal-600`}
-                  aria-label="Randomize sound settings"
-                >
-                  <DiceIcon />
-                </button>
-            </div>
+            <button
+              onClick={handleSamplePlayToggle}
+              disabled={recordingState === 'recording'}
+              className={`${mainButtonBaseClasses} ${sampleButton.className}`}
+              aria-label={sampleButton.aria}
+            >
+                {sampleButton.icon}
+            </button>
+            <button
+              onClick={randomizeParams}
+              className={`${sideButtonBaseClasses} bg-orange-500 hover:bg-orange-400 disabled:hover:bg-orange-500`}
+              aria-label="Randomize sound settings"
+            >
+              <DiceIcon />
+            </button>
           </div>
 
           <div className="bg-black/10 p-4 rounded-lg shadow-inner">
@@ -217,21 +257,18 @@ const App: React.FC = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>RENDERING...</span>
+                  Rendering...
                 </>
               ) : (
                 <>
                   <DownloadIcon />
-                  <span>DOWNLOAD</span>
+                  Download Audio
                 </>
               )}
             </button>
           </div>
         </div>
       </main>
-       <footer className="text-center p-2 bg-[#D9D9D9] text-gray-700 text-xs">
-            <p>App Design by Basic_Salad</p>
-        </footer>
     </div>
   );
 };

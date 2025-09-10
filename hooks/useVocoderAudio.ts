@@ -236,6 +236,7 @@ const createWorklet = (context: AudioContext) => {
 export const useVocoderAudio = (params: VocoderParams) => {
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const [isSampleLoaded, setIsSampleLoaded] = useState(false);
 
   const contextRef = useRef<AudioContext | null>(null);
   const vocoderNodeRef = useRef<AudioWorkletNode | null>(null);
@@ -274,9 +275,28 @@ export const useVocoderAudio = (params: VocoderParams) => {
   }, [params]);
 
 
+  const resetRecording = useCallback(async () => {
+    if (sourceNodeRef.current) {
+        sourceNodeRef.current.stop();
+        sourceNodeRef.current.disconnect();
+        sourceNodeRef.current = null;
+    }
+    if (recordingState === 'playing' || recordingState === 'paused') {
+      if(contextRef.current && contextRef.current.state === 'running') {
+         await contextRef.current.suspend();
+      }
+    }
+    recordedBufferRef.current = null;
+    setIsSampleLoaded(false);
+    setRecordingState('idle');
+  }, [recordingState]);
+
+
   const startRecording = useCallback(async () => {
     const context = await setupAudioContext();
-    if (!context || recordingState === 'recording') return;
+    if (!context) return;
+    
+    await resetRecording();
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -295,10 +315,11 @@ export const useVocoderAudio = (params: VocoderParams) => {
 
         recorder.start();
         setRecordingState('recording');
+        setIsSampleLoaded(false);
     } catch(err) {
         console.error("Microphone access denied or error:", err);
     }
-  }, [recordingState, setupAudioContext]);
+  }, [setupAudioContext, resetRecording]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && recordingState === 'recording') {
@@ -342,22 +363,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
     }
   }, [recordingState, setupAudioContext, analyserNode, params]);
 
-  const resetRecording = useCallback(async () => {
-    if (sourceNodeRef.current) {
-        sourceNodeRef.current.stop();
-        sourceNodeRef.current.disconnect();
-        sourceNodeRef.current = null;
-    }
-    if (recordingState === 'playing' || recordingState === 'paused') {
-      if(contextRef.current && contextRef.current.state === 'running') {
-         await contextRef.current.suspend();
-      }
-    }
-    recordedBufferRef.current = null;
-    setRecordingState('idle');
-  }, [recordingState]);
-
-  const loadSample = useCallback(async () => {
+  const loadSample = useCallback(async (autoplay = false) => {
     const context = await setupAudioContext();
     if (!context) return;
     
@@ -371,11 +377,18 @@ export const useVocoderAudio = (params: VocoderParams) => {
       const arrayBuffer = await response.arrayBuffer();
       recordedBufferRef.current = await context.decodeAudioData(arrayBuffer);
       setRecordingState('recorded');
+      setIsSampleLoaded(true);
+
+      if (autoplay) {
+        await togglePlayback();
+      }
+
     } catch (error) {
       console.error("Failed to load or decode sample audio:", error);
-      setRecordingState('idle'); 
+      setRecordingState('idle');
+      setIsSampleLoaded(false);
     }
-  }, [setupAudioContext, resetRecording]);
+  }, [setupAudioContext, resetRecording, togglePlayback]);
   
   const renderAndDownload = useCallback(async () => {
     if (!recordedBufferRef.current) {
@@ -437,5 +450,5 @@ export const useVocoderAudio = (params: VocoderParams) => {
     };
   }, []);
 
-  return { recordingState, startRecording, stopRecording, togglePlayback, analyserNode, resetRecording, renderAndDownload, loadSample };
+  return { recordingState, startRecording, stopRecording, togglePlayback, analyserNode, resetRecording, renderAndDownload, loadSample, isSampleLoaded };
 };
