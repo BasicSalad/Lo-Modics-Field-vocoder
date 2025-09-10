@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { type VocoderParams, type RecordingState } from './types';
 import { useVocoderAudio } from './hooks/useVocoderAudio';
 import { PlayIcon, MicrophoneIcon, StopIcon, ResetIcon, DiceIcon, DownloadIcon } from './components/Icon';
@@ -104,7 +104,7 @@ const App: React.FC = () => {
 
   const isPlaying = recordingState === 'playing';
   
-  const getMainButtonContent = () => {
+  const mainButton = useMemo(() => {
     switch (recordingState) {
       case 'idle':
         return { 
@@ -140,9 +140,9 @@ const App: React.FC = () => {
             disabled: true,
         };
     }
-  };
+  }, [recordingState, startRecording, stopRecording]);
 
-  const getPlaybackButtonContent = () => {
+  const playbackButton = useMemo(() => {
     const baseClasses = 'bg-teal-600 hover:bg-teal-500';
     if (recordingState === 'playing') {
         return {
@@ -156,10 +156,8 @@ const App: React.FC = () => {
         aria: canReset ? 'Play audio' : 'Load and play sample',
         className: baseClasses,
     };
-  };
+  }, [recordingState, canReset]);
 
-  const mainButton = getMainButtonContent();
-  const playbackButton = getPlaybackButtonContent();
   const mainButtonBaseClasses = "w-20 h-20 rounded-lg flex items-center justify-center shadow-lg transition-all duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:w-10 [&_svg]:h-10";
   const sideButtonBaseClasses = "w-16 h-16 rounded-lg text-white flex items-center justify-center shadow-lg transition-all duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:w-8 [&_svg]:h-8";
 
@@ -190,7 +188,7 @@ const App: React.FC = () => {
             {micError && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-4 text-center text-white bg-black/90">
                     <div className="w-12 h-12 mb-2 text-red-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                         </svg>
                     </div>

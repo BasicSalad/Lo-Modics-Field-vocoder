@@ -58,7 +58,7 @@ export const Slider: React.FC<SliderProps> = ({ label, min, max, step, value, on
         <div
             className="absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full pointer-events-none"
             style={{
-              width: `calc(${percentage}% + ${(50 - percentage) * 0.22}px)`, // Thumb offset correction for 22px thumb
+              width: `calc(${percentage}% + ${(50 - percentage) * 0.28}px)`, // Thumb offset correction for 28px thumb
               backgroundColor: 'var(--slider-color)',
             }}
         ></div>
@@ -75,7 +75,7 @@ export const Slider: React.FC<SliderProps> = ({ label, min, max, step, value, on
       </div>
       <style>{`
         .custom-slider {
-          --thumb-size: 22px;
+          --thumb-size: 28px;
           --track-height: 8px;
         }
 

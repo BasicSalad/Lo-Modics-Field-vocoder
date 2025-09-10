@@ -12,9 +12,6 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode, isPlaying, recordingState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const mRef = useRef(2); // Chladni parameter m
-  const nRef = useRef(3); // Chladni parameter n
-  const rotationRef = useRef(0); // For continuous rotation
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -76,63 +73,22 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
       } else if (analyserNode && isPlaying) {
         analyserNode.getByteFrequencyData(dataArray);
 
-        // Map audio data to Chladni parameters (m, n)
-        const lowSlice = dataArray.slice(1, Math.floor(bufferLength * 0.1));
-        const highSlice = dataArray.slice(Math.floor(bufferLength * 0.1), Math.floor(bufferLength * 0.4));
+        ctx.fillStyle = '#32CD32'; // Classic "scan screen" green (limegreen)
+
+        const barWidth = 3;
+        const spacing = 1;
+        const totalBarWidth = barWidth + spacing;
+        let x = 0;
         
-        const lowAvg = lowSlice.length > 0 ? lowSlice.reduce((s, v) => s + v, 0) / lowSlice.length : 0;
-        const highAvg = highSlice.length > 0 ? highSlice.reduce((s, v) => s + v, 0) / highSlice.length : 0;
-        
-        const targetM = 1 + (lowAvg / 255) * 7;
-        const targetN = 1 + (highAvg / 255) * 7;
+        // We only use the first N bins that can fit on screen
+        const numBarsToDraw = Math.floor(width / totalBarWidth);
 
-        mRef.current = lerp(mRef.current, targetM, 0.1);
-        nRef.current = lerp(nRef.current, targetN, 0.1);
-
-        const m = mRef.current;
-        const n = nRef.current;
-        
-        const amplitude = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
-
-        const rotationSpeed = (amplitude / 255) * 0.02;
-        rotationRef.current += rotationSpeed;
-        const angle = rotationRef.current;
-        const cosA = Math.cos(angle);
-        const sinA = Math.sin(angle);
-        
-        const imageData = ctx.createImageData(width, height);
-        const pixelData = imageData.data;
-
-        const threshold = 0.025; // Controls line thickness
-        
-        const baseBrightness = Math.min(255, amplitude * 2.5);
-
-        for (let y = 0; y < height; y++) {
-          for (let x = 0; x < width; x++) {
-            const nx_base = (x / (width - 1)) * 2 - 1;
-            const ny_base = (y / (height - 1)) * 2 - 1;
-            const index = (y * width + x) * 4;
-
-            const nx = nx_base * cosA - ny_base * sinA;
-            const ny = nx_base * sinA + ny_base * cosA;
-
-            const val = Math.cos(n * Math.PI * nx) * Math.cos(m * Math.PI * ny) -
-                        Math.cos(m * Math.PI * nx) * Math.cos(n * Math.PI * ny);
-
-            let r = 0, g = 0, b = 0;
-
-            if (Math.abs(val) < threshold) {
-                g = baseBrightness; // Set to green for a "scan screen" look
-            }
-
-            pixelData[index]     = r;
-            pixelData[index + 1] = g;
-            pixelData[index + 2] = b;
-            pixelData[index + 3] = 255;
-          }
+        // We can skip some initial bins if they are always zero (DC offset)
+        for (let i = 1; i < numBarsToDraw; i++) {
+          const barHeight = (dataArray[i] / 255) * height;
+          ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+          x += totalBarWidth;
         }
-        
-        ctx.putImageData(imageData, 0, 0);
       }
 
       // Draw grid overlay on top of everything

@@ -257,12 +257,14 @@ export const useVocoderAudio = (params: VocoderParams) => {
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
         setAnalyserNode(analyser);
+        return { context: audioContext, analyser };
       } catch (e) {
         console.error("Error creating audio context or worklet", e);
+        return { context: null, analyser: null };
       }
     }
-    return contextRef.current;
-  }, []);
+    return { context: contextRef.current, analyser: analyserNode };
+  }, [analyserNode]);
   
   useEffect(() => {
     if (vocoderNodeRef.current) {
@@ -300,8 +302,8 @@ export const useVocoderAudio = (params: VocoderParams) => {
 
 
   const startRecording = useCallback(async () => {
-    const context = await setupAudioContext();
-    if (!context) return;
+    const { context, analyser } = await setupAudioContext();
+    if (!context || !analyser) return;
     
     await resetRecording();
     if (context.state === 'suspended') {
@@ -311,11 +313,9 @@ export const useVocoderAudio = (params: VocoderParams) => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        if (analyserNode) {
-            const micSourceNode = context.createMediaStreamSource(stream);
-            micSourceNode.connect(analyserNode);
-            micSourceNodeRef.current = micSourceNode;
-        }
+        const micSourceNode = context.createMediaStreamSource(stream);
+        micSourceNode.connect(analyser);
+        micSourceNodeRef.current = micSourceNode;
 
         const recorder = new MediaRecorder(stream);
         mediaRecorderRef.current = recorder;
@@ -344,7 +344,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
         }
         setRecordingState('idle');
     }
-  }, [setupAudioContext, resetRecording, analyserNode]);
+  }, [setupAudioContext, resetRecording]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && recordingState === 'recording') {
@@ -357,8 +357,8 @@ export const useVocoderAudio = (params: VocoderParams) => {
   }, [recordingState]);
 
   const togglePlayback = useCallback(async () => {
-    const context = await setupAudioContext();
-    if (!context) return;
+    const { context } = await setupAudioContext();
+    if (!context || !analyserNode) return;
     
     if (recordingState === 'playing') {
         if (sourceNodeRef.current) {
@@ -377,7 +377,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
         }
         if (!vocoderNodeRef.current) {
             vocoderNodeRef.current = new AudioWorkletNode(context, 'vocoder-processor');
-            vocoderNodeRef.current.connect(analyserNode!).connect(context.destination);
+            vocoderNodeRef.current.connect(analyserNode).connect(context.destination);
              vocoderNodeRef.current.port.postMessage({ type: 'UPDATE_PARAMS', params });
         }
        
@@ -394,7 +394,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
   }, [recordingState, setupAudioContext, analyserNode, params]);
 
   const loadSample = useCallback(async (autoplay = false) => {
-    const context = await setupAudioContext();
+    const { context } = await setupAudioContext();
     if (!context) return;
     
     await resetRecording();
