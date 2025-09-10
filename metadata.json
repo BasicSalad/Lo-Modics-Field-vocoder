@@ -1,0 +1,7 @@
+{
+  "name": "Lo-Modics Field vocoder",
+  "description": "An interactive web application that implements a generative vocoder synthesizer based on the provided dittytoy code. Adjust parameters like noise, size, speed, and pitch to shape the sound in real-time.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
