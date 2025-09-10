@@ -6,4 +6,4 @@ export interface VocoderParams {
   pitch: number;
 }
 
-export type RecordingState = 'idle' | 'recording' | 'recorded' | 'playing' | 'paused';
+export type RecordingState = 'idle' | 'recording' | 'recorded' | 'playing';

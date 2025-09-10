@@ -19,9 +19,9 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
     const canvas = canvasRef.current;
     if (!canvas || !analyserNode) return;
 
-    // Use a higher resolution for the canvas for crisp lines, maintaining a 2:1 ratio
+    // Use a higher resolution for the canvas for crisp lines, maintaining a 4:1 ratio
     const width = 512;
-    const height = 256; // 512 / 2
+    const height = 128; // 512 / 4
     canvas.width = width;
     canvas.height = height;
 
@@ -74,8 +74,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
       const pixelData = imageData.data;
 
       const threshold = 0.025; // Controls line thickness
-      // Increased offset for a more dramatic RGB split effect
-      const offset = 0.01 + (amplitude / 255) * 0.05;
 
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -89,21 +87,18 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
 
           const baseBrightness = Math.min(255, (amplitude * 2.5) * decay);
           
-          // Calculate values for R, G, B channels with slight spatial offsets on rotated coordinates
-          const valR = Math.cos(n * Math.PI * (nx + offset)) * Math.cos(m * Math.PI * ny) -
-                       Math.cos(m * Math.PI * (nx + offset)) * Math.cos(n * Math.PI * ny);
-          
-          const valG = Math.cos(n * Math.PI * nx) * Math.cos(m * Math.PI * ny) -
-                       Math.cos(m * Math.PI * nx) * Math.cos(n * Math.PI * ny);
-          
-          const valB = Math.cos(n * Math.PI * (nx - offset)) * Math.cos(m * Math.PI * ny) -
-                       Math.cos(m * Math.PI * (nx - offset)) * Math.cos(n * Math.PI * ny);
+          // Calculate a single Chladni value for a monochrome pattern
+          const val = Math.cos(n * Math.PI * nx) * Math.cos(m * Math.PI * ny) -
+                      Math.cos(m * Math.PI * nx) * Math.cos(n * Math.PI * ny);
 
           let r = 0, g = 0, b = 0;
 
-          if (Math.abs(valR) < threshold) r = baseBrightness;
-          if (Math.abs(valG) < threshold) g = baseBrightness;
-          if (Math.abs(valB) < threshold) b = baseBrightness;
+          // If the value is within the threshold, set all color channels to the brightness
+          if (Math.abs(val) < threshold) {
+              r = baseBrightness;
+              g = baseBrightness;
+              b = baseBrightness;
+          }
 
           pixelData[index]     = r;
           pixelData[index + 1] = g;

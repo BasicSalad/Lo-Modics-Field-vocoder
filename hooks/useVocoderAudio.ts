@@ -281,7 +281,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
         sourceNodeRef.current.disconnect();
         sourceNodeRef.current = null;
     }
-    if (recordingState === 'playing' || recordingState === 'paused') {
+    if (recordingState === 'playing') {
       if(contextRef.current && contextRef.current.state === 'running') {
          await contextRef.current.suspend();
       }
@@ -297,6 +297,9 @@ export const useVocoderAudio = (params: VocoderParams) => {
     if (!context) return;
     
     await resetRecording();
+    if (context.state === 'suspended') {
+      await context.resume();
+    }
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -332,11 +335,12 @@ export const useVocoderAudio = (params: VocoderParams) => {
     if (!context) return;
     
     if (recordingState === 'playing') {
-        context.suspend();
-        setRecordingState('paused');
-    } else if (recordingState === 'paused') {
-        context.resume();
-        setRecordingState('playing');
+        if (sourceNodeRef.current) {
+            sourceNodeRef.current.stop();
+            sourceNodeRef.current.disconnect();
+            sourceNodeRef.current = null;
+        }
+        setRecordingState('recorded');
     } else if (recordingState === 'recorded' && recordedBufferRef.current) {
         if (context.state === 'suspended') {
             await context.resume();
@@ -404,9 +408,12 @@ export const useVocoderAudio = (params: VocoderParams) => {
     }
 
     const recordedBuffer = recordedBufferRef.current;
+    // Calculate the output length based on the playback speed
+    const outputLength = Math.floor(recordedBuffer.length / params.speed);
+
     const offlineContext = new OfflineAudioContext(
         recordedBuffer.numberOfChannels,
-        recordedBuffer.length,
+        outputLength,
         recordedBuffer.sampleRate
     );
 

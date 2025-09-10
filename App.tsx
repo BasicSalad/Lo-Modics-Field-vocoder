@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { type VocoderParams, type RecordingState } from './types';
 import { useVocoderAudio } from './hooks/useVocoderAudio';
-import { PlayIcon, PauseIcon, MicrophoneIcon, StopIcon, ResetIcon, DiceIcon, DownloadIcon } from './components/Icon';
+import { PlayIcon, MicrophoneIcon, StopIcon, ResetIcon, DiceIcon, DownloadIcon } from './components/Icon';
 import { SpectrumVisualizer } from './components/SpectrumVisualizer';
 import { Slider } from './components/Slider';
 
@@ -19,9 +19,19 @@ const sliderRanges = {
     pitch: { min: -24, max: 24 },
 };
 
+const sliderColors = {
+    pitch: '#ef4444',      // red-500
+    size: '#22c55e',       // green-500
+    carrierNoise: '#3b82f6', // blue-500
+    speed: '#facc15',      // yellow-400
+    dice: '#f97316',       // orange-500
+};
+
 const App: React.FC = () => {
   const [params, setParams] = useState<VocoderParams>(defaultParams);
   const [isRendering, setIsRendering] = useState(false);
+  const [isRandomizing, setIsRandomizing] = useState(false);
+  const [diceButtonColor, setDiceButtonColor] = useState(sliderColors.dice);
 
   const { 
     recordingState, 
@@ -32,7 +42,6 @@ const App: React.FC = () => {
     resetRecording,
     renderAndDownload,
     loadSample,
-    isSampleLoaded,
   } = useVocoderAudio(params);
   
   const handleParamChange = useCallback((param: keyof VocoderParams, value: number) => {
@@ -43,6 +52,7 @@ const App: React.FC = () => {
   }, []);
 
   const randomizeParams = useCallback(() => {
+    setIsRandomizing(true);
     const newParams: VocoderParams = {
         carrierNoise: Math.random() * (sliderRanges.carrierNoise.max - sliderRanges.carrierNoise.min) + sliderRanges.carrierNoise.min,
         size: Math.random() * (sliderRanges.size.max - sliderRanges.size.min) + sliderRanges.size.min,
@@ -50,6 +60,19 @@ const App: React.FC = () => {
         pitch: Math.random() * (sliderRanges.pitch.max - sliderRanges.pitch.min) + sliderRanges.pitch.min,
     };
     setParams(newParams);
+
+    const colorCycle = [sliderColors.pitch, sliderColors.size, sliderColors.carrierNoise, sliderColors.speed];
+    
+    colorCycle.forEach((color, index) => {
+        setTimeout(() => {
+            setDiceButtonColor(color);
+        }, index * 100);
+    });
+
+    setTimeout(() => {
+        setDiceButtonColor(sliderColors.dice);
+        setIsRandomizing(false);
+    }, colorCycle.length * 100);
   }, []);
   
   const handleDownload = useCallback(async () => {
@@ -63,18 +86,19 @@ const App: React.FC = () => {
     }
   }, [renderAndDownload]);
 
-  const handleSamplePlayToggle = useCallback(async () => {
+  const canReset = ['recorded', 'playing'].includes(recordingState);
+
+  const handlePlaybackToggle = useCallback(async () => {
     if (recordingState === 'recording') return;
 
-    if (isSampleLoaded && (recordingState === 'playing' || recordingState === 'paused')) {
+    if (canReset) {
         togglePlayback();
     } else {
         await loadSample(true); // Autoplay
     }
-  }, [recordingState, isSampleLoaded, togglePlayback, loadSample]);
+  }, [recordingState, canReset, togglePlayback, loadSample]);
 
   const isPlaying = recordingState === 'playing';
-  const canReset = ['recorded', 'playing', 'paused'].includes(recordingState);
   
   const getMainButtonContent = () => {
     switch (recordingState) {
@@ -83,64 +107,55 @@ const App: React.FC = () => {
             icon: <MicrophoneIcon />, 
             action: startRecording, 
             aria: 'Start recording',
-            className: 'bg-gray-800 hover:bg-gray-700 text-white'
+            className: 'bg-red-600 hover:bg-red-500 text-white',
+            disabled: false,
         };
       case 'recording':
         return { 
             icon: <StopIcon />, 
             action: stopRecording, 
             aria: 'Stop recording',
-            className: 'bg-red-600 hover:bg-red-500 text-white animate-record-pulse-glow'
+            className: 'bg-red-600 hover:bg-red-500 text-white animate-record-pulse-glow',
+            disabled: false,
         };
       case 'recorded':
-      case 'paused':
-        return { 
-            icon: isSampleLoaded ? <MicrophoneIcon /> : <PlayIcon />, 
-            action: isSampleLoaded ? startRecording : togglePlayback, 
-            aria: isSampleLoaded ? 'Start recording (overwrites sample)' : 'Play recording',
-            className: 'bg-purple-600 hover:bg-purple-500 text-white'
-        };
       case 'playing':
         return { 
-            icon: <PauseIcon />, 
-            action: togglePlayback, 
-            aria: 'Pause playback',
-            className: 'bg-purple-600 hover:bg-purple-500 text-white'
+            icon: <MicrophoneIcon />, 
+            action: () => {}, 
+            aria: 'Microphone disabled. Press Reset to start a new recording.',
+            className: 'bg-red-600 disabled:hover:bg-red-600',
+            disabled: true,
         };
-      default:
+      default: // Should not happen
         return { 
             icon: <MicrophoneIcon />, 
-            action: startRecording, 
-            aria: 'Start recording',
-            className: 'bg-gray-800 hover:bg-gray-700 text-white'
+            action: () => {}, 
+            aria: 'Microphone disabled',
+            className: 'bg-gray-800',
+            disabled: true,
         };
     }
   };
 
-  const getSampleButtonContent = () => {
-    if (isSampleLoaded && recordingState === 'playing') {
+  const getPlaybackButtonContent = () => {
+    const baseClasses = 'bg-teal-600 hover:bg-teal-500';
+    if (recordingState === 'playing') {
         return {
-            icon: <PauseIcon />,
-            aria: 'Pause sample',
-            className: 'bg-teal-600 hover:bg-teal-500'
-        };
-    }
-    if (isSampleLoaded && (recordingState === 'paused' || recordingState === 'recorded')) {
-        return {
-            icon: <PlayIcon />,
-            aria: 'Play sample',
-            className: 'bg-teal-600 hover:bg-teal-500'
+            icon: <StopIcon />,
+            aria: 'Stop playback',
+            className: baseClasses,
         };
     }
     return {
         icon: <PlayIcon />,
-        aria: 'Load and play sample',
-        className: 'bg-teal-600 hover:bg-teal-500'
+        aria: canReset ? 'Play audio' : 'Load and play sample',
+        className: baseClasses,
     };
   };
 
   const mainButton = getMainButtonContent();
-  const sampleButton = getSampleButtonContent();
+  const playbackButton = getPlaybackButtonContent();
   const mainButtonBaseClasses = "w-20 h-20 rounded-lg flex items-center justify-center shadow-lg transition-all duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:w-10 [&_svg]:h-10";
   const sideButtonBaseClasses = "w-16 h-16 rounded-lg text-white flex items-center justify-center shadow-lg transition-all duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:w-8 [&_svg]:h-8";
 
@@ -167,14 +182,14 @@ const App: React.FC = () => {
       
       <main className="bg-white p-4 flex-grow">
         <div className="w-full max-w-2xl mx-auto">
-          <div className="w-full aspect-[2/1] bg-black rounded-md mb-4 overflow-hidden shadow-inner">
+          <div className="w-full aspect-[4/1] bg-black rounded-md mb-4 overflow-hidden shadow-inner">
             <SpectrumVisualizer analyserNode={analyserNode} isPlaying={isPlaying} />
           </div>
 
           <div className="flex items-center justify-center gap-6 mb-6">
             <button
               onClick={resetRecording}
-              disabled={!canReset}
+              disabled={!canReset && recordingState !== 'idle'}
               className={`${sideButtonBaseClasses} bg-blue-600 hover:bg-blue-500 disabled:hover:bg-blue-600`}
               aria-label="Clear recording"
             >
@@ -182,22 +197,25 @@ const App: React.FC = () => {
             </button>
             <button
               onClick={mainButton.action}
+              disabled={mainButton.disabled}
               className={`${mainButtonBaseClasses} ${mainButton.className}`}
               aria-label={mainButton.aria}
             >
               {mainButton.icon}
             </button>
             <button
-              onClick={handleSamplePlayToggle}
+              onClick={handlePlaybackToggle}
               disabled={recordingState === 'recording'}
-              className={`${mainButtonBaseClasses} ${sampleButton.className}`}
-              aria-label={sampleButton.aria}
+              className={`${mainButtonBaseClasses} ${playbackButton.className}`}
+              aria-label={playbackButton.aria}
             >
-                {sampleButton.icon}
+                {playbackButton.icon}
             </button>
             <button
               onClick={randomizeParams}
-              className={`${sideButtonBaseClasses} bg-orange-500 hover:bg-orange-400 disabled:hover:bg-orange-500`}
+              disabled={isRandomizing}
+              style={{ backgroundColor: diceButtonColor }}
+              className={`${sideButtonBaseClasses} transition-colors duration-100 ease-in-out hover:brightness-95`}
               aria-label="Randomize sound settings"
             >
               <DiceIcon />
@@ -216,6 +234,7 @@ const App: React.FC = () => {
                   step={0.1}
                   value={params.pitch}
                   onChange={(value) => handleParamChange('pitch', value)}
+                  color={sliderColors.pitch}
                 />
                 <Slider
                   label="Formant"
@@ -224,6 +243,7 @@ const App: React.FC = () => {
                   step={0.01}
                   value={params.size}
                   onChange={(value) => handleParamChange('size', value)}
+                  color={sliderColors.size}
                 />
                 <Slider
                   label="Robot"
@@ -232,6 +252,7 @@ const App: React.FC = () => {
                   step={0.01}
                   value={params.carrierNoise}
                   onChange={(value) => handleParamChange('carrierNoise', value)}
+                  color={sliderColors.carrierNoise}
                 />
                 <Slider
                   label="Speed"
@@ -240,6 +261,7 @@ const App: React.FC = () => {
                   step={0.01}
                   value={params.speed}
                   onChange={(value) => handleParamChange('speed', value)}
+                  color={sliderColors.speed}
                 />
             </div>
           </div>
