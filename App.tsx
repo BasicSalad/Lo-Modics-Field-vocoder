@@ -76,6 +76,9 @@ const App: React.FC = () => {
   }, []);
   
   const handleDownload = useCallback(async () => {
+    if (recordingState === 'playing') {
+      togglePlayback();
+    }
     setIsRendering(true);
     try {
       await renderAndDownload();
@@ -84,7 +87,7 @@ const App: React.FC = () => {
     } finally {
       setIsRendering(false);
     }
-  }, [renderAndDownload]);
+  }, [renderAndDownload, recordingState, togglePlayback]);
 
   const canReset = ['recorded', 'playing'].includes(recordingState);
 
@@ -183,7 +186,7 @@ const App: React.FC = () => {
       <main className="bg-white p-4 flex-grow">
         <div className="w-full max-w-2xl mx-auto">
           <div className="w-full aspect-[4/1] bg-black rounded-md mb-4 overflow-hidden shadow-inner">
-            <SpectrumVisualizer analyserNode={analyserNode} isPlaying={isPlaying} />
+            <SpectrumVisualizer analyserNode={analyserNode} isPlaying={isPlaying} recordingState={recordingState} />
           </div>
 
           <div className="flex items-center justify-center gap-6 mb-6">
@@ -288,6 +291,9 @@ const App: React.FC = () => {
                 </>
               )}
             </button>
+            <p className="text-center text-xs text-black/50 mt-2">
+              App Design by Basic_Salad
+            </p>
           </div>
         </div>
       </main>
