@@ -237,6 +237,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
   const [isSampleLoaded, setIsSampleLoaded] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
 
   const contextRef = useRef<AudioContext | null>(null);
   const vocoderNodeRef = useRef<AudioWorkletNode | null>(null);
@@ -244,6 +245,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
   const recordedBufferRef = useRef<AudioBuffer | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const workletUrlRef = useRef<string | null>(null);
+  const micSourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
   const setupAudioContext = useCallback(async () => {
     if (!contextRef.current) {
@@ -276,6 +278,10 @@ export const useVocoderAudio = (params: VocoderParams) => {
 
 
   const resetRecording = useCallback(async () => {
+    if (micSourceNodeRef.current) {
+        micSourceNodeRef.current.disconnect();
+        micSourceNodeRef.current = null;
+    }
     if (sourceNodeRef.current) {
         sourceNodeRef.current.stop();
         sourceNodeRef.current.disconnect();
@@ -289,6 +295,7 @@ export const useVocoderAudio = (params: VocoderParams) => {
     recordedBufferRef.current = null;
     setIsSampleLoaded(false);
     setRecordingState('idle');
+    setMicError(null);
   }, [recordingState]);
 
 
@@ -303,6 +310,13 @@ export const useVocoderAudio = (params: VocoderParams) => {
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        if (analyserNode) {
+            const micSourceNode = context.createMediaStreamSource(stream);
+            micSourceNode.connect(analyserNode);
+            micSourceNodeRef.current = micSourceNode;
+        }
+
         const recorder = new MediaRecorder(stream);
         mediaRecorderRef.current = recorder;
         const chunks: Blob[] = [];
@@ -321,12 +335,24 @@ export const useVocoderAudio = (params: VocoderParams) => {
         setIsSampleLoaded(false);
     } catch(err) {
         console.error("Microphone access denied or error:", err);
+        if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+            setMicError('Microphone access was denied.');
+        } else if (err instanceof DOMException && err.name === 'NotFoundError') {
+            setMicError('No microphone was found. Please ensure a microphone is connected and enabled.');
+        } else {
+            setMicError('An unknown error occurred while trying to access the microphone.');
+        }
+        setRecordingState('idle');
     }
-  }, [setupAudioContext, resetRecording]);
+  }, [setupAudioContext, resetRecording, analyserNode]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && recordingState === 'recording') {
         mediaRecorderRef.current.stop();
+        if (micSourceNodeRef.current) {
+            micSourceNodeRef.current.disconnect();
+            micSourceNodeRef.current = null;
+        }
     }
   }, [recordingState]);
 
@@ -457,5 +483,5 @@ export const useVocoderAudio = (params: VocoderParams) => {
     };
   }, []);
 
-  return { recordingState, startRecording, stopRecording, togglePlayback, analyserNode, resetRecording, renderAndDownload, loadSample, isSampleLoaded };
+  return { recordingState, startRecording, stopRecording, togglePlayback, analyserNode, resetRecording, renderAndDownload, loadSample, isSampleLoaded, micError };
 };

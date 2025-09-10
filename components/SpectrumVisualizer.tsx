@@ -15,7 +15,6 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
   const mRef = useRef(2); // Chladni parameter m
   const nRef = useRef(3); // Chladni parameter n
   const rotationRef = useRef(0); // For continuous rotation
-  const fadeIntensityRef = useRef(0); // For fade-in/out effect
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -37,28 +36,44 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
       animationFrameRef.current = requestAnimationFrame(draw);
       const now = Date.now();
 
-      // Update fade intensity for smooth transitions
-      if (isPlaying && fadeIntensityRef.current < 1) {
-        fadeIntensityRef.current = Math.min(1, fadeIntensityRef.current + 0.05); // Fade in speed
-      } else if (!isPlaying && fadeIntensityRef.current > 0) {
-        fadeIntensityRef.current = Math.max(0, fadeIntensityRef.current - 0.05); // Fade out speed
-      }
-
       // Base drawing: always start with a black background
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, width, height);
 
       if (recordingState === 'recording') {
-        // Draw recording indicator
-        const pulse = (Math.sin(now / 200) + 1) / 2; // Oscillates between 0 and 1
-        const radius = 8 + pulse * 4;
-        const opacity = 0.6 + pulse * 0.4;
-        
-        ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`;
-        ctx.beginPath();
-        ctx.arc(width - 20, 20, radius, 0, 2 * Math.PI);
-        ctx.fill();
-      } else if (analyserNode && fadeIntensityRef.current > 0) {
+        if (analyserNode) {
+            analyserNode.getByteFrequencyData(dataArray);
+
+            const volume = dataArray.reduce((s, v) => s + v, 0) / bufferLength;
+
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const numDots = 4;
+            const dotSpacing = 30;
+            const totalWidth = (numDots - 1) * dotSpacing;
+            const startX = centerX - totalWidth / 2;
+
+            for (let i = 0; i < numDots; i++) {
+                const x = startX + i * dotSpacing;
+
+                const baseRadius = 5;
+                const maxRadiusIncrease = 7;
+                // Make animation more sensitive to sound
+                const radius = baseRadius + (volume / 200) * maxRadiusIncrease;
+                
+                // Add a subtle individual pulse
+                const pulse = (Math.sin((now / 250) + i) + 1) / 2;
+                const finalRadius = lerp(radius * 0.8, radius, pulse);
+
+                const opacity = 0.5 + (volume / 255) * 0.5;
+
+                ctx.fillStyle = `rgba(220, 38, 38, ${opacity})`; // Tailwind red-600 like color
+                ctx.beginPath();
+                ctx.arc(x, centerY, finalRadius, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+      } else if (analyserNode && isPlaying) {
         analyserNode.getByteFrequencyData(dataArray);
 
         // Map audio data to Chladni parameters (m, n)
@@ -90,7 +105,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
 
         const threshold = 0.025; // Controls line thickness
         
-        const baseBrightness = Math.min(255, amplitude * 2.5) * fadeIntensityRef.current;
+        const baseBrightness = Math.min(255, amplitude * 2.5);
 
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -107,9 +122,7 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyser
             let r = 0, g = 0, b = 0;
 
             if (Math.abs(val) < threshold) {
-                r = baseBrightness;
-                g = baseBrightness;
-                b = baseBrightness;
+                g = baseBrightness; // Set to green for a "scan screen" look
             }
 
             pixelData[index]     = r;
